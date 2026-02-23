@@ -109,3 +109,6 @@ CMakeLists.txt.user
 # Logs/temp
 *.log
 *.tmp
+
+.idea/
+*.iml

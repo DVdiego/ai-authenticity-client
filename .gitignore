@@ -1,0 +1,29 @@
+# IDE
+.idea/
+*.iml
+
+# Qt Creator user files
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qtc_clangd/
+CMakeLists.txt.user
+.creator
+.creator.user
+.creator.user.*
+
+# Build folders
+build/
+cmake-build-*/
+
+# CMake/Ninja generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.ninja
+.ninja_*
+
+# macOS
+.DS_Store
