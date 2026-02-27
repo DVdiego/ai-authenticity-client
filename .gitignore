@@ -1,5 +1,6 @@
 # IDE
 .idea/
+**/.qtcreator/
 *.iml
 
 # Qt Creator user files
