@@ -2,14 +2,26 @@ cmake_minimum_required(VERSION 3.16)
 
 project(cliente VERSION 0.1 LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 QuickDialogs2 Network)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(appcliente
     main.cpp
+    src/app/AppController.cpp
+    src/engines/EngineFactory.cpp
+    src/engines/OnDeviceEngine.cpp
+    src/engines/OnDeviceNativeEngine.cpp
+    src/engines/ApiEngine.cpp
+)
+
+target_include_directories(appcliente PRIVATE
+    src
+    /opt/homebrew/opt/onnxruntime/include
 )
 
 qt_add_qml_module(appcliente
@@ -18,9 +30,6 @@ qt_add_qml_module(appcliente
         Main.qml
 )
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
 set_target_properties(appcliente PROPERTIES
 #    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appcliente
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -30,7 +39,13 @@ set_target_properties(appcliente PROPERTIES
 )
 
 target_link_libraries(appcliente
-    PRIVATE Qt6::Quick
+    PRIVATE
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::QuickDialogs2
+        Qt6::Network
+        ${OpenCV_LIBS}
+        /opt/homebrew/opt/onnxruntime/lib/libonnxruntime.dylib
 )
 
 include(GNUInstallDirs)
