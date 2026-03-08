@@ -31,3 +31,8 @@ Makefile
 
 # Local packaging output
 dist/
+
+# Distribution metadata is generated per recipient and should stay local
+distribution/build_info.json
+distribution/license.json
+distribution/license.sig
