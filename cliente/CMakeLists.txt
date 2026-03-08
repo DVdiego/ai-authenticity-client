@@ -17,11 +17,13 @@ qt_add_executable(appcliente
     src/engines/OnDeviceEngine.cpp
     src/engines/OnDeviceNativeEngine.cpp
     src/engines/ApiEngine.cpp
+    ../../../ai-authenticity-mobile/native/core/cpp/src/runtime_api.cpp
 )
 
 target_include_directories(appcliente PRIVATE
     src
     /opt/homebrew/opt/onnxruntime/include
+    ../../../ai-authenticity-mobile/native/core/cpp/include
 )
 
 qt_add_qml_module(appcliente

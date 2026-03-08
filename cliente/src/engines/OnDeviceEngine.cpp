@@ -1,6 +1,7 @@
 #include "engines/OnDeviceEngine.hpp"
 
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeDatabase>
@@ -39,6 +40,10 @@ QString scriptPath() {
         QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/cliente/scripts/ondevice_infer.py")
     );
 }
+
+QString configuredPyImageModel() {
+    return qEnvironmentVariable("AI_AUTH_PY_IMAGE_MODEL");
+}
 } // namespace
 
 QString OnDeviceEngine::name() const {
@@ -70,7 +75,12 @@ AnalysisResult OnDeviceEngine::analyzeFile(const QString& filePath) {
     }
 
     QProcess process;
-    process.start(py, QStringList{script, QStringLiteral("--file"), filePath});
+    QStringList args{script, QStringLiteral("--file"), filePath};
+    const QString modelPath = configuredPyImageModel().trimmed();
+    if (!modelPath.isEmpty()) {
+        args << QStringLiteral("--image-model") << modelPath;
+    }
+    process.start(py, args);
 
     if (!process.waitForStarted(5000)) {
         out.error = QStringLiteral("Failed to start on-device process.");
@@ -106,16 +116,32 @@ AnalysisResult OnDeviceEngine::analyzeFile(const QString& filePath) {
 
     const QJsonObject metadata = root.value(QStringLiteral("metadata")).toObject();
     const QJsonObject scores = root.value(QStringLiteral("scores")).toObject();
+    const QJsonArray debugFeatures = root.value(QStringLiteral("debug_features")).toArray();
 
     out.ok = true;
     out.aiProbabilityPct = root.value(QStringLiteral("ai_probability")).toDouble(0.0);
     out.explanation = root.value(QStringLiteral("explanation")).toString(QStringLiteral("-"));
     out.mediaType = metadata.value(QStringLiteral("media_type")).toString(QStringLiteral("image"));
     out.decision = decisionFromString(metadata.value(QStringLiteral("decision")).toString());
+    out.modelLabel = metadata.value(QStringLiteral("model_filename")).toString(metadata.value(QStringLiteral("model_used")).toString(QStringLiteral("ImageNet")));
+    out.modelPath = metadata.value(QStringLiteral("model_path")).toString(modelPath);
+    out.modelSha256 = metadata.value(QStringLiteral("model_sha256")).toString(QStringLiteral("N/A"));
+    out.modelLoaded = metadata.value(QStringLiteral("model_loaded")).toString(QStringLiteral("unknown"));
+    const QString modelError = metadata.value(QStringLiteral("model_error")).toString();
+    if (out.modelLoaded != QStringLiteral("true")) {
+        out.error = modelError.isEmpty()
+                        ? QStringLiteral("Selected Python model was not loaded by backend runtime.")
+                        : QStringLiteral("Selected Python model was not loaded: %1").arg(modelError);
+        out.ok = false;
+        return out;
+    }
     out.scores.spectral = scores.value(QStringLiteral("spectral")).toDouble(0.0);
     out.scores.visual = scores.value(QStringLiteral("visual")).toDouble(0.0);
     out.scores.temporal = scores.value(QStringLiteral("temporal")).toDouble(0.0);
     out.scores.aiModelRaw = scores.value(QStringLiteral("ai_model")).toDouble(0.0);
+    for (const QJsonValue& v : debugFeatures) {
+        out.debugFeatures.push_back(v.toDouble(0.0));
+    }
 
     return out;
 }

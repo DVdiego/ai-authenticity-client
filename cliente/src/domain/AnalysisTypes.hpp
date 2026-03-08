@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <vector>
 
 struct AnalysisScores {
     double spectral = 0.0;
@@ -23,6 +24,11 @@ struct AnalysisResult {
     DecisionLevel decision = DecisionLevel::Inconclusive;
     QString explanation;
     AnalysisScores scores;
+    QString modelLabel;
+    QString modelPath;
+    QString modelSha256;
+    QString modelLoaded;
+    std::vector<double> debugFeatures;
     QString error;
 };
 

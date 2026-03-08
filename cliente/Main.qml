@@ -1,17 +1,38 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCore
 import QtQuick.Dialogs
 
 Window {
     id: root
 
     width: 1080
-    height: 760
+    height: 820
     visible: true
     title: qsTr("AI Authenticity Client")
 
     property string selectedFilePath: ""
+    readonly property string legalDocsPath: "/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/legal"
+    readonly property string legalSummaryText: "Research-only build. Non-commercial use only. Results are indicative and must not be used as forensic proof, compliance evidence, or for high-impact decisions."
+    readonly property string legalFullText:
+        "AI Authenticity Client - distribution notice\n\n" +
+        "Intended use\n" +
+        "- Educational, research, and internal evaluation use only.\n" +
+        "- No commercial use, resale, hosting, sublicensing, or paid service use without explicit written authorization.\n\n" +
+        "Model and output limitations\n" +
+        "- The application provides probabilistic, non-deterministic indicators.\n" +
+        "- Outputs are not forensic proof, not legal evidence, and not a substitute for expert review.\n" +
+        "- Do not use the results as the sole basis for disciplinary, employment, admissions, law-enforcement, compliance, or other high-impact decisions.\n\n" +
+        "Liability and scope\n" +
+        "- The software is provided as is, without warranties.\n" +
+        "- The user is responsible for lawful use, dataset rights, and compliance with the applicable jurisdiction.\n" +
+        "- If the software is redistributed outside the authors' control, downstream distributors assume responsibility for their own deployment, claims, and regulatory compliance.\n\n" +
+        "Repository documents\n" +
+        "- " + legalDocsPath + "/LICENSE.md\n" +
+        "- " + legalDocsPath + "/EULA.md\n" +
+        "- " + legalDocsPath + "/NOTICE.md\n" +
+        "- " + legalDocsPath + "/TFG_DISTRIBUTION_CHECKLIST.md"
     readonly property bool hasController: typeof appController !== "undefined" && appController !== null
 
     function localPathFromUrl(value) {
@@ -20,6 +41,18 @@ Window {
             return decodeURIComponent(raw.substring(7))
         }
         return raw
+    }
+
+    Settings {
+        id: legalSettings
+        category: "legal"
+        property bool accepted: false
+    }
+
+    Component.onCompleted: {
+        if (!legalSettings.accepted) {
+            legalDialog.open()
+        }
     }
 
     FileDialog {
@@ -37,6 +70,77 @@ Window {
         }
     }
 
+    Dialog {
+        id: legalDialog
+        title: "Legal Notice"
+        modal: true
+        dim: true
+        x: (root.width - width) / 2
+        y: (root.height - height) / 2
+        width: Math.min(root.width - 80, 760)
+        height: Math.min(root.height - 80, 560)
+        closePolicy: legalSettings.accepted ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
+
+        background: Rectangle {
+            radius: 14
+            color: "#f8fbfe"
+            border.color: "#b8cfe0"
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                text: legalSummaryText
+                wrapMode: Text.WordWrap
+                color: "#243b4c"
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                TextArea {
+                    text: legalFullText
+                    readOnly: true
+                    wrapMode: Text.Wrap
+                    color: "#1f3646"
+                    background: Rectangle {
+                        radius: 10
+                        color: "#ffffff"
+                        border.color: "#d0dde6"
+                    }
+                }
+            }
+        }
+
+        footer: RowLayout {
+            spacing: 8
+
+            Item { Layout.fillWidth: true }
+
+            Button {
+                text: legalSettings.accepted ? "Close" : "Decline"
+                onClicked: {
+                    if (legalSettings.accepted) {
+                        legalDialog.close()
+                    } else {
+                        Qt.quit()
+                    }
+                }
+            }
+
+            Button {
+                text: legalSettings.accepted ? "Accepted" : "Accept"
+                enabled: !legalSettings.accepted
+                onClicked: {
+                    legalSettings.accepted = true
+                    legalDialog.close()
+                }
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -49,26 +153,57 @@ Window {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
+        anchors.margins: 18
+        spacing: 10
 
         Label {
             text: "AI Authenticity Analysis"
             font.family: "Avenir Next"
-            font.pixelSize: 36
+            font.pixelSize: 34
             font.bold: true
             color: "#f3f7fb"
         }
 
         Label {
-            text: "POC engines: on_device_py, on_device_native, api"
+            text: hasController && appController.showDevOptions
+                  ? "POC engines: on_device_py, on_device_native, api"
+                  : "Distribution build: native analysis"
             font.family: "Avenir Next"
-            font.pixelSize: 15
+            font.pixelSize: 14
             color: "#c7d9e5"
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            radius: 12
+            color: "#f6e7b8"
+            border.color: "#d4b45c"
+            implicitHeight: Math.max(44, legalBannerText.implicitHeight + 16)
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 10
+
+                Text {
+                    id: legalBannerText
+                    Layout.fillWidth: true
+                    text: legalSummaryText
+                    wrapMode: Text.WordWrap
+                    color: "#5a4200"
+                    font.pixelSize: 12
+                }
+
+                Button {
+                    text: "Legal"
+                    onClicked: legalDialog.open()
+                }
+            }
         }
 
         Frame {
             Layout.fillWidth: true
+            Layout.preferredHeight: 270
             background: Rectangle {
                 radius: 14
                 color: "#f8fbfe"
@@ -77,17 +212,18 @@ Window {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
+                anchors.margins: 14
+                spacing: 8
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: 8
 
                     Label {
                         text: "Engine"
                         font.bold: true
                         color: "#233947"
+                        visible: hasController && appController.showDevOptions
                     }
 
                     ComboBox {
@@ -101,6 +237,8 @@ Window {
                         }
                         onActivated: if (hasController) appController.setEngineMode(currentText)
                         implicitWidth: 190
+                        implicitHeight: 36
+                        visible: hasController && appController.showDevOptions
                         contentItem: Text {
                             leftPadding: 10
                             rightPadding: 10
@@ -139,6 +277,7 @@ Window {
                         id: selectFileButton
                         text: "Select File"
                         font.bold: true
+                        implicitHeight: 36
                         onClicked: fileDialog.open()
                         background: Rectangle {
                             radius: 8
@@ -158,7 +297,8 @@ Window {
                         id: executeButton
                         text: "Execute"
                         font.bold: true
-                        enabled: selectedFilePath.length > 0
+                        implicitHeight: 36
+                        enabled: selectedFilePath.length > 0 && legalSettings.accepted
                         onClicked: if (hasController) appController.analyzeFile(selectedFilePath)
                         background: Rectangle {
                             radius: 8
@@ -178,7 +318,9 @@ Window {
                         id: compareButton
                         text: "Compare"
                         font.bold: true
-                        enabled: selectedFilePath.length > 0
+                        implicitHeight: 36
+                        enabled: selectedFilePath.length > 0 && legalSettings.accepted
+                        visible: hasController && appController.showDevOptions
                         onClicked: if (hasController) appController.compareEngines(selectedFilePath)
                         background: Rectangle {
                             radius: 8
@@ -199,12 +341,93 @@ Window {
                     Layout.fillWidth: true
                     radius: 10
                     color: "#ffffff"
-                    border.color: selectedFilePath.length > 0 ? "#74b0d0" : "#d0dde6"
-                    implicitHeight: 54
+                    border.color: "#d0dde6"
+                    implicitHeight: 48
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 8
+                        spacing: 8
+
+                        Label {
+                            text: "shared model"
+                            font.bold: true
+                            color: "#294354"
+                        }
+
+                        ComboBox {
+                            id: pyModelCombo
+                            Layout.fillWidth: true
+                            model: hasController ? appController.pyModelOptions : []
+                            currentIndex: hasController ? appController.pyModelIndex : -1
+                            enabled: model.length > 0
+                            implicitHeight: 32
+                            onActivated: if (hasController) appController.setPyModelIndex(currentIndex)
+                            contentItem: Text {
+                                leftPadding: 10
+                                rightPadding: 10
+                                text: pyModelCombo.displayText
+                                color: pyModelCombo.enabled ? "#102739" : "#90a3af"
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                            background: Rectangle {
+                                radius: 8
+                                color: "#ffffff"
+                                border.color: "#9fc0d5"
+                            }
+                        }
+
+                        Button {
+                            id: refreshModelsButton
+                            text: "Refresh"
+                            implicitHeight: 32
+                            onClicked: if (hasController) appController.refreshPyModelOptions()
+                            background: Rectangle {
+                                radius: 8
+                                color: "#ffffff"
+                                border.color: "#9db5c6"
+                            }
+                            contentItem: Text {
+                                text: refreshModelsButton.text
+                                color: "#294354"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: 10
+                    color: "#f7fbfe"
+                    border.color: "#d0dde6"
+                    implicitHeight: 36
+
+                    Label {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        text: hasController && appController.pyModelPath.length > 0
+                              ? "py: " + appController.pyModelPath + " | native: " + appController.nativeModelVersion
+                              : "No shared model selected"
+                        color: hasController && appController.pyModelPath.length > 0 ? "#486172" : "#7b8b98"
+                        elide: Text.ElideMiddle
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: 10
+                    color: "#ffffff"
+                    border.color: selectedFilePath.length > 0 ? "#74b0d0" : "#d0dde6"
+                    implicitHeight: 48
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 8
 
                         Label {
                             text: selectedFilePath.length > 0 ? selectedFilePath : "No file selected"
@@ -216,6 +439,7 @@ Window {
                         Button {
                             id: clearButton
                             text: "Clear"
+                            implicitHeight: 32
                             enabled: selectedFilePath.length > 0
                             onClicked: selectedFilePath = ""
                             background: Rectangle {
@@ -238,15 +462,19 @@ Window {
                     radius: 8
                     color: "#eef5fb"
                     border.color: "#c8deed"
-                    implicitHeight: 44
+                    implicitHeight: Math.max(36, feedbackText.implicitHeight + 16)
 
-                    Label {
-                        anchors.fill: parent
-                        anchors.margins: 10
+                    Text {
+                        id: feedbackText
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
                         text: hasController ? appController.statusMessage : "Controller not connected in preview mode."
                         wrapMode: Text.WordWrap
                         color: "#304a5b"
-                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
                     }
                 }
             }
@@ -254,7 +482,7 @@ Window {
 
         Frame {
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.preferredHeight: 300
             background: Rectangle {
                 radius: 14
                 color: "#ffffff"
@@ -263,67 +491,75 @@ Window {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 14
+                anchors.margins: 14
+                spacing: 10
 
                 Label {
                     text: "Result"
-                    font.pixelSize: 24
+                    font.pixelSize: 22
                     font.bold: true
                     color: "#1d3444"
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 10
 
                     Rectangle {
-                        Layout.fillWidth: true
+                        Layout.preferredWidth: 190
+                        Layout.minimumWidth: 150
+                        Layout.maximumWidth: 210
                         radius: 12
                         color: "#f3f8fc"
                         border.color: "#c4d9e8"
-                        implicitHeight: 100
+                        implicitHeight: 64
 
                         Column {
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: 2
 
-                            Label { text: "Decision"; font.bold: true; color: "#2b4a5f" }
-                            Label { text: hasController ? appController.decision : "-"; font.pixelSize: 18; font.bold: true; color: "#102739" }
+                            Label { text: "Decision"; font.pixelSize: 11; font.bold: true; color: "#2b4a5f" }
+                            Label { text: hasController ? appController.decision : "-"; font.pixelSize: 15; font.bold: true; color: "#102739" }
                         }
                     }
 
                     Rectangle {
-                        Layout.fillWidth: true
+                        Layout.preferredWidth: 190
+                        Layout.minimumWidth: 150
+                        Layout.maximumWidth: 210
                         radius: 12
                         color: "#f3f8fc"
                         border.color: "#c4d9e8"
-                        implicitHeight: 100
+                        implicitHeight: 64
 
                         Column {
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: 2
 
-                            Label { text: "Probability (AI)"; font.bold: true; color: "#2b4a5f" }
-                            Label { text: hasController ? Number(appController.aiProbability).toFixed(2) + " %" : "0.00 %"; font.pixelSize: 18; font.bold: true; color: "#102739" }
+                            Label { text: "Probability (AI)"; font.pixelSize: 11; font.bold: true; color: "#2b4a5f" }
+                            Label { text: hasController ? Number(appController.aiProbability).toFixed(2) + " %" : "0.00 %"; font.pixelSize: 15; font.bold: true; color: "#102739" }
                         }
                     }
 
                     Rectangle {
-                        Layout.fillWidth: true
+                        Layout.preferredWidth: 190
+                        Layout.minimumWidth: 150
+                        Layout.maximumWidth: 210
                         radius: 12
                         color: "#f3f8fc"
                         border.color: "#c4d9e8"
-                        implicitHeight: 100
+                        implicitHeight: 64
 
                         Column {
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: 2
 
-                            Label { text: "Media"; font.bold: true; color: "#2b4a5f" }
-                            Label { text: hasController ? appController.mediaType : "-"; font.pixelSize: 18; font.bold: true; color: "#102739" }
+                            Label { text: "Media"; font.pixelSize: 11; font.bold: true; color: "#2b4a5f" }
+                            Label { text: hasController ? appController.mediaType : "-"; font.pixelSize: 15; font.bold: true; color: "#102739" }
                         }
                     }
+
+                    Item { Layout.fillWidth: true }
                 }
 
                 Rectangle {
@@ -335,10 +571,11 @@ Window {
 
                     ScrollView {
                         anchors.fill: parent
-                        anchors.margins: 12
+                        anchors.margins: 10
+                        clip: true
 
-                        Label {
-                            width: parent.width
+                        Text {
+                            width: Math.max(0, parent.width)
                             text: {
                                 if (!hasController)
                                     return "Run the app executable to see live output."
@@ -348,7 +585,79 @@ Window {
                             }
                             wrapMode: Text.WordWrap
                             color: "#334e60"
-                            lineHeight: 1.2
+                            font.pixelSize: 12
+                            lineHeight: 1.15
+                        }
+                    }
+                }
+            }
+        }
+
+        Frame {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 260
+            background: Rectangle {
+                radius: 14
+                color: "#ffffff"
+                border.color: "#c2d7e6"
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 8
+
+                Label {
+                    text: "History"
+                    font.pixelSize: 22
+                    font.bold: true
+                    color: "#1d3444"
+                }
+
+                TabBar {
+                    id: historyTabs
+                    Layout.fillWidth: true
+                    implicitHeight: 36
+
+                    TabButton { text: "Execute" }
+                    TabButton { text: "Compare" }
+                }
+
+                StackLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: historyTabs.currentIndex
+
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+
+                        Text {
+                            width: Math.max(0, parent.width)
+                            text: hasController && appController.analysisHistory.length > 0
+                                  ? appController.analysisHistory
+                                  : "No execute history yet."
+                            wrapMode: Text.WordWrap
+                            color: "#334e60"
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+
+                        Text {
+                            width: Math.max(0, parent.width)
+                            text: hasController && appController.comparisonHistory.length > 0
+                                  ? appController.comparisonHistory
+                                  : "No compare history yet."
+                            wrapMode: Text.WordWrap
+                            color: "#334e60"
+                            font.pixelSize: 12
                         }
                     }
                 }

@@ -13,5 +13,5 @@ std::unique_ptr<IAnalysisEngine> EngineFactory::create(EngineMode mode) {
     case EngineMode::Api:
         return std::make_unique<ApiEngine>();
     }
-    return std::make_unique<OnDeviceEngine>();
+    return std::make_unique<OnDeviceNativeEngine>();
 }

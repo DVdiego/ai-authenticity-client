@@ -121,6 +121,18 @@ AnalysisResult ApiEngine::analyzeFile(const QString& filePath) {
     out.explanation = root.value("explanation").toString(QStringLiteral("-"));
     out.mediaType = metadata.value("media_type").toString(QStringLiteral("unknown"));
     out.decision = decisionFromString(metadata.value("decision").toString());
+    out.modelLabel = metadata.value("model_filename").toString(metadata.value("model_used").toString(QStringLiteral("backend")));
+    out.modelPath = metadata.value("model_path").toString(QStringLiteral("N/A"));
+    out.modelSha256 = metadata.value("model_sha256").toString(QStringLiteral("N/A"));
+    out.modelLoaded = metadata.value("model_loaded").toString(QStringLiteral("unknown"));
+    const QString modelError = metadata.value("model_error").toString();
+    if (out.modelLoaded != QStringLiteral("true")) {
+        out.error = modelError.isEmpty()
+                        ? QStringLiteral("Backend model was not loaded.")
+                        : QStringLiteral("Backend model was not loaded: %1").arg(modelError);
+        out.ok = false;
+        return out;
+    }
     out.scores.spectral = scores.value("spectral").toDouble(0.0);
     out.scores.visual = scores.value("visual").toDouble(0.0);
     out.scores.temporal = scores.value("temporal").toDouble(0.0);

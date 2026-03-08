@@ -12,6 +12,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--file", required=True, help="Absolute path to image file")
     p.add_argument("--include-features", action="store_true", help="Include extracted feature vector in output")
+    p.add_argument("--image-model", default="", help="Explicit image model checkpoint (.pt) for this process")
     return p.parse_args()
 
 
@@ -33,6 +34,9 @@ def main() -> int:
 
     if not backend_dir.exists():
         return fail(f"Backend directory not found: {backend_dir}")
+
+    if args.image_model.strip():
+        os.environ["TFG_IMAGE_MODEL_PATH"] = args.image_model.strip()
 
     sys.path.insert(0, str(backend_dir))
 
