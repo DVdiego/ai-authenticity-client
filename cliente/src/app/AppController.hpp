@@ -14,6 +14,10 @@ class AppController final : public QObject {
     Q_PROPERTY(QString engineMode READ engineMode WRITE setEngineMode NOTIFY engineModeChanged)
     Q_PROPERTY(QString engineName READ engineName NOTIFY engineModeChanged)
     Q_PROPERTY(bool showDevOptions READ showDevOptions CONSTANT)
+    Q_PROPERTY(QString legalDocsPath READ legalDocsPath CONSTANT)
+    Q_PROPERTY(bool licenseValid READ licenseValid NOTIFY licenseMetadataChanged)
+    Q_PROPERTY(QString licenseSummary READ licenseSummary NOTIFY licenseMetadataChanged)
+    Q_PROPERTY(QString buildSummary READ buildSummary NOTIFY licenseMetadataChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(double aiProbability READ aiProbability NOTIFY analysisChanged)
     Q_PROPERTY(QString decision READ decision NOTIFY analysisChanged)
@@ -35,6 +39,10 @@ public:
 
     QString engineName() const;
     bool showDevOptions() const;
+    QString legalDocsPath() const;
+    bool licenseValid() const;
+    QString licenseSummary() const;
+    QString buildSummary() const;
     QString statusMessage() const;
 
     double aiProbability() const;
@@ -57,6 +65,7 @@ public:
 
 signals:
     void engineModeChanged();
+    void licenseMetadataChanged();
     void statusMessageChanged();
     void analysisChanged();
     void comparisonReportChanged();
@@ -79,10 +88,14 @@ private:
     void appendComparisonHistory(const QString& entryJson, const QString& summaryLine);
     void refreshComparisonHistory();
     void rebuildPyModelOptions();
+    void reloadDistributionMetadata();
 
     EngineMode mode_ = EngineMode::OnDeviceNative;
     std::unique_ptr<IAnalysisEngine> engine_;
 
+    bool licenseValid_ = false;
+    QString licenseSummary_;
+    QString buildSummary_;
     QString statusMessage_;
     QString comparisonReport_;
     QString analysisHistory_;

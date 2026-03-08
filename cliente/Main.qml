@@ -13,7 +13,10 @@ Window {
     title: qsTr("AI Authenticity Client")
 
     property string selectedFilePath: ""
-    readonly property string legalDocsPath: "/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/legal"
+    readonly property string legalDocsPath: hasController ? appController.legalDocsPath : ""
+    readonly property string repoUrl: "https://github.com/DVdiego/ai-authenticity-client"
+    readonly property string releasesUrl: repoUrl + "/releases"
+    readonly property string legalUrl: repoUrl + "/tree/develop/legal"
     readonly property string legalSummaryText: "Research-only build. Non-commercial use only. Results are indicative and must not be used as forensic proof, compliance evidence, or for high-impact decisions."
     readonly property string legalFullText:
         "AI Authenticity Client - distribution notice\n\n" +
@@ -28,11 +31,13 @@ Window {
         "- The software is provided as is, without warranties.\n" +
         "- The user is responsible for lawful use, dataset rights, and compliance with the applicable jurisdiction.\n" +
         "- If the software is redistributed outside the authors' control, downstream distributors assume responsibility for their own deployment, claims, and regulatory compliance.\n\n" +
-        "Repository documents\n" +
-        "- " + legalDocsPath + "/LICENSE.md\n" +
-        "- " + legalDocsPath + "/EULA.md\n" +
-        "- " + legalDocsPath + "/NOTICE.md\n" +
-        "- " + legalDocsPath + "/TFG_DISTRIBUTION_CHECKLIST.md"
+        "Distribution identity\n" +
+        "- " + (hasController ? appController.buildSummary : "Build metadata unavailable") + "\n" +
+        "- " + (hasController ? appController.licenseSummary : "License metadata unavailable") + "\n\n" +
+        "Public references\n" +
+        "- Repository: " + repoUrl + "\n" +
+        "- Releases: " + releasesUrl + "\n" +
+        "- Legal documents: " + legalUrl
     readonly property bool hasController: typeof appController !== "undefined" && appController !== null
 
     function localPathFromUrl(value) {
@@ -94,6 +99,26 @@ Window {
                 text: legalSummaryText
                 wrapMode: Text.WordWrap
                 color: "#243b4c"
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                radius: 10
+                color: hasController && appController.licenseValid ? "#eef8f1" : "#fff2f0"
+                border.color: hasController && appController.licenseValid ? "#7eb791" : "#d48b81"
+                implicitHeight: Math.max(58, legalMetaText.implicitHeight + 16)
+
+                Text {
+                    id: legalMetaText
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    text: (hasController ? appController.buildSummary : "Build metadata unavailable") +
+                          "\n" +
+                          (hasController ? appController.licenseSummary : "License metadata unavailable")
+                    wrapMode: Text.WordWrap
+                    color: "#1f3646"
+                    font.pixelSize: 12
+                }
             }
 
             ScrollView {
@@ -298,7 +323,10 @@ Window {
                         text: "Execute"
                         font.bold: true
                         implicitHeight: 36
-                        enabled: selectedFilePath.length > 0 && legalSettings.accepted
+                        enabled: selectedFilePath.length > 0
+                                 && legalSettings.accepted
+                                 && hasController
+                                 && appController.licenseValid
                         onClicked: if (hasController) appController.analyzeFile(selectedFilePath)
                         background: Rectangle {
                             radius: 8
@@ -319,7 +347,10 @@ Window {
                         text: "Compare"
                         font.bold: true
                         implicitHeight: 36
-                        enabled: selectedFilePath.length > 0 && legalSettings.accepted
+                        enabled: selectedFilePath.length > 0
+                                 && legalSettings.accepted
+                                 && hasController
+                                 && appController.licenseValid
                         visible: hasController && appController.showDevOptions
                         onClicked: if (hasController) appController.compareEngines(selectedFilePath)
                         background: Rectangle {
@@ -409,11 +440,33 @@ Window {
                         anchors.fill: parent
                         anchors.margins: 8
                         text: hasController && appController.pyModelPath.length > 0
-                              ? "py: " + appController.pyModelPath + " | native: " + appController.nativeModelVersion
+                              ? (appController.showDevOptions
+                                    ? "py: " + appController.pyModelPath + " | native: " + appController.nativeModelVersion
+                                    : "native package: " + appController.nativeModelVersion)
                               : "No shared model selected"
                         color: hasController && appController.pyModelPath.length > 0 ? "#486172" : "#7b8b98"
                         elide: Text.ElideMiddle
                         verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: 10
+                    color: "#f7fbfe"
+                    border.color: hasController && appController.licenseValid ? "#cfe0ea" : "#e0bdb7"
+                    implicitHeight: Math.max(42, buildInfoText.implicitHeight + 16)
+
+                    Text {
+                        id: buildInfoText
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        text: hasController
+                              ? (appController.buildSummary + "\n" + appController.licenseSummary)
+                              : "Build metadata unavailable"
+                        wrapMode: Text.WordWrap
+                        color: "#486172"
                         font.pixelSize: 12
                     }
                 }

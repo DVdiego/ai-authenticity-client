@@ -1,0 +1,11 @@
+{
+  "app_name": "AI Authenticity Client",
+  "app_version": "0.1.0",
+  "release_tag": "v0.1.0",
+  "git_commit": "f74877f",
+  "built_at": "2026-03-08T20:15:00Z",
+  "distribution_channel": "local-macos-test",
+  "model_version": "image_featurenet_v1",
+  "model_sha256": "b3c807b85741a7da29ad903aa7faa2b550b8305f1cd476c1aa148ac5832b7eb9",
+  "issued_to": "Universidad de Valladolid - evaluacion TFG"
+}

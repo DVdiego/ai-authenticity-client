@@ -7,11 +7,14 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCryptographicHash>
+#include <QCoreApplication>
 #include <QProcess>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
 #include <QTextStream>
 
 #include "domain/AnalysisTypes.hpp"
@@ -19,6 +22,12 @@
 #include "engines/OnDeviceNativeEngine.hpp"
 
 namespace {
+QString appResourcesDirectoryPath() {
+    const QString candidate = QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources"));
+    const QFileInfo info(candidate);
+    return (info.exists() && info.isDir()) ? candidate : QString();
+}
+
 QString pythonExecutable() {
     QString python = qEnvironmentVariable("AI_AUTH_PYTHON");
     if (!python.isEmpty()) {
@@ -88,10 +97,20 @@ bool loadPyFeatures(const QString& filePath, std::vector<double>& outFeatures, Q
 }
 
 QString historyFilePath() {
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!appData.isEmpty()) {
+        QDir().mkpath(appData);
+        return QDir(appData).filePath(QStringLiteral("compare_history.jsonl"));
+    }
     return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/cliente/runtime/compare_history.jsonl");
 }
 
 QString analysisHistoryFilePath() {
+    const QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!appData.isEmpty()) {
+        QDir().mkpath(appData);
+        return QDir(appData).filePath(QStringLiteral("execute_history.jsonl"));
+    }
     return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/cliente/runtime/execute_history.jsonl");
 }
 
@@ -100,10 +119,86 @@ QString modelsDirectoryPath() {
 }
 
 QString modelPackageDirectoryPath() {
-    return qEnvironmentVariable(
-        "AIAUTH_MODEL_PACKAGE_DIR",
-        QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/ai-authenticity-mobile/model-package")
-    );
+    const QString configured = qEnvironmentVariable("AIAUTH_MODEL_PACKAGE_DIR").trimmed();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+    const QString resourcesDir = appResourcesDirectoryPath();
+    if (!resourcesDir.isEmpty()) {
+        const QString bundled = QDir(resourcesDir).filePath(QStringLiteral("model-package"));
+        if (QFileInfo::exists(bundled)) {
+            return bundled;
+        }
+    }
+    return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/ai-authenticity-mobile/model-package");
+}
+
+QString legalDocsDirectoryPath() {
+    const QString resourcesDir = appResourcesDirectoryPath();
+    if (!resourcesDir.isEmpty()) {
+        const QString bundled = QDir(resourcesDir).filePath(QStringLiteral("legal"));
+        if (QFileInfo::exists(bundled)) {
+            return bundled;
+        }
+    }
+    return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/legal");
+}
+
+QString distributionDirectoryPath() {
+    const QString configured = qEnvironmentVariable("AI_AUTH_DISTRIBUTION_DIR").trimmed();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+    const QString resourcesDir = appResourcesDirectoryPath();
+    if (!resourcesDir.isEmpty()) {
+        const QString bundled = QDir(resourcesDir).filePath(QStringLiteral("distribution"));
+        if (QFileInfo::exists(bundled)) {
+            return bundled;
+        }
+    }
+    return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/frontend/ai-authenticity-client/distribution");
+}
+
+QByteArray hmacSha256(const QByteArray& key, const QByteArray& message) {
+    constexpr int blockSize = 64;
+    QByteArray normalizedKey = key;
+    if (normalizedKey.size() > blockSize) {
+        normalizedKey = QCryptographicHash::hash(normalizedKey, QCryptographicHash::Sha256);
+    }
+    normalizedKey = normalizedKey.leftJustified(blockSize, '\0', true);
+
+    QByteArray oKeyPad(blockSize, char(0x5c));
+    QByteArray iKeyPad(blockSize, char(0x36));
+    for (int i = 0; i < blockSize; ++i) {
+        oKeyPad[i] = oKeyPad[i] ^ normalizedKey[i];
+        iKeyPad[i] = iKeyPad[i] ^ normalizedKey[i];
+    }
+
+    QByteArray inner = iKeyPad;
+    inner.append(message);
+    const QByteArray innerHash = QCryptographicHash::hash(inner, QCryptographicHash::Sha256);
+
+    QByteArray outer = oKeyPad;
+    outer.append(innerHash);
+    return QCryptographicHash::hash(outer, QCryptographicHash::Sha256).toHex();
+}
+
+QByteArray licenseSigningKey() {
+    return QByteArrayLiteral("ai_authenticity_client_tfg_license_v1");
+}
+
+void applySelectedModelEnv(const QString& pyPath, const QString& nativeVersion) {
+    if (pyPath.isEmpty() || pyPath.startsWith(QStringLiteral("pkg:"))) {
+        qunsetenv("AI_AUTH_PY_IMAGE_MODEL");
+    } else {
+        qputenv("AI_AUTH_PY_IMAGE_MODEL", pyPath.toUtf8());
+    }
+
+    if (nativeVersion.isEmpty()) {
+        qunsetenv("AI_AUTH_NATIVE_MODEL_VERSION");
+    } else {
+        qputenv("AI_AUTH_NATIVE_MODEL_VERSION", nativeVersion.toUtf8());
+    }
 }
 
 int expectedPyImageInputDim() {
@@ -176,6 +271,7 @@ int detectPtInputDim(const QString& modelPath) {
 AppController::AppController(QObject* parent)
     : QObject(parent) {
     pyModelPath_ = qEnvironmentVariable("AI_AUTH_PY_IMAGE_MODEL");
+    reloadDistributionMetadata();
     rebuildPyModelOptions();
     rebuildEngine();
     refreshAnalysisHistory();
@@ -228,6 +324,22 @@ QString AppController::engineName() const {
 
 bool AppController::showDevOptions() const {
     return qEnvironmentVariableIntValue("AI_AUTH_SHOW_DEV_UI") == 1;
+}
+
+QString AppController::legalDocsPath() const {
+    return legalDocsDirectoryPath();
+}
+
+bool AppController::licenseValid() const {
+    return licenseValid_;
+}
+
+QString AppController::licenseSummary() const {
+    return licenseSummary_;
+}
+
+QString AppController::buildSummary() const {
+    return buildSummary_;
 }
 
 QString AppController::statusMessage() const {
@@ -293,16 +405,7 @@ void AppController::setPyModelPath(const QString& path) {
     const QString previousNativeVersion = nativeModelVersion_;
     pyModelPath_ = normalized;
     nativeModelVersion_ = nextNativeVersion;
-    if (normalized.isEmpty()) {
-        qunsetenv("AI_AUTH_PY_IMAGE_MODEL");
-    } else {
-        qputenv("AI_AUTH_PY_IMAGE_MODEL", normalized.toUtf8());
-    }
-    if (nativeModelVersion_.isEmpty()) {
-        qunsetenv("AI_AUTH_NATIVE_MODEL_VERSION");
-    } else {
-        qputenv("AI_AUTH_NATIVE_MODEL_VERSION", nativeModelVersion_.toUtf8());
-    }
+    applySelectedModelEnv(pyModelPath_, nativeModelVersion_);
     emit pyModelPathChanged();
     if (previousNativeVersion != nativeModelVersion_) {
         emit nativeModelVersionChanged();
@@ -322,6 +425,11 @@ void AppController::refreshPyModelOptions() {
 }
 
 bool AppController::analyzeFile(const QString& filePath) {
+    if (!licenseValid_) {
+        setStatus(QStringLiteral("License metadata missing or invalid. Open Legal for details."));
+        return false;
+    }
+
     if (!engine_) {
         setStatus(QStringLiteral("Engine not initialized."));
         return false;
@@ -365,6 +473,11 @@ bool AppController::analyzeFile(const QString& filePath) {
 }
 
 bool AppController::compareEngines(const QString& filePath) {
+    if (!licenseValid_) {
+        setStatus(QStringLiteral("License metadata missing or invalid. Open Legal for details."));
+        return false;
+    }
+
     if (filePath.trimmed().isEmpty()) {
         setStatus(QStringLiteral("Select a file path first."));
         return false;
@@ -645,6 +758,7 @@ void AppController::rebuildPyModelOptions() {
     const QString previousPath = pyModelPath_;
     const QString previousNativeVersion = nativeModelVersion_;
     const int expectedDim = expectedPyImageInputDim();
+    const bool devMode = showDevOptions();
     pyModelOptions_.clear();
     pyModelPaths_.clear();
     nativeModelVersions_.clear();
@@ -685,36 +799,40 @@ void AppController::rebuildPyModelOptions() {
 
         const QJsonObject sourceCheckpoint = meta.value(QStringLiteral("source_checkpoint")).toObject();
         QString pyPath = sourceCheckpoint.value(QStringLiteral("path")).toString().trimmed();
-        if (pyPath.isEmpty()) {
-            continue;
-        }
-
         QFileInfo pyInfo(pyPath);
-        if (!pyInfo.isAbsolute()) {
+        if (!pyPath.isEmpty() && !pyInfo.isAbsolute()) {
             pyInfo = QFileInfo(QDir(modelsDirectoryPath()), pyPath);
         }
-        if (!pyInfo.exists() || !pyInfo.isFile()) {
+        QDateTime ts = packageInfo.lastModified();
+        QString display;
+        QString keyPath;
+
+        if (pyInfo.exists() && pyInfo.isFile()) {
+            const int inputDim = detectPtInputDim(pyInfo.absoluteFilePath());
+            if (inputDim != expectedDim) {
+                continue;
+            }
+
+            ts = pyInfo.birthTime();
+            if (!ts.isValid()) {
+                ts = pyInfo.metadataChangeTime();
+            }
+            if (!ts.isValid()) {
+                ts = pyInfo.lastModified();
+            }
+
+            display = devMode
+                          ? QStringLiteral("%1 | %2f | %3").arg(modelVersion, QString::number(expectedDim), pyInfo.fileName())
+                          : QStringLiteral("%1 | %2f | packaged").arg(modelVersion, QString::number(expectedDim));
+            keyPath = pyInfo.absoluteFilePath();
+        } else if (!devMode) {
+            display = QStringLiteral("%1 | %2f | packaged").arg(modelVersion, QString::number(expectedDim));
+            keyPath = QStringLiteral("pkg:%1").arg(modelVersion);
+        } else {
             continue;
         }
 
-        const int inputDim = detectPtInputDim(pyInfo.absoluteFilePath());
-        if (inputDim != expectedDim) {
-            continue;
-        }
-
-        QDateTime ts = pyInfo.birthTime();
-        if (!ts.isValid()) {
-            ts = pyInfo.metadataChangeTime();
-        }
-        if (!ts.isValid()) {
-            ts = pyInfo.lastModified();
-        }
-
-        const QString display = QStringLiteral("%1 | %2f | %3")
-                                    .arg(modelVersion,
-                                         QString::number(expectedDim),
-                                         pyInfo.fileName());
-        entries.push_back({display, pyInfo.absoluteFilePath(), modelVersion, ts});
+        entries.push_back({display, keyPath, modelVersion, ts});
     }
 
     std::sort(entries.begin(), entries.end(), [](const ModelEntry& a, const ModelEntry& b) {
@@ -733,26 +851,21 @@ void AppController::rebuildPyModelOptions() {
     if (pyModelPath_.isEmpty() && !pyModelPaths_.isEmpty()) {
         pyModelPath_ = pyModelPaths_.first();
         nativeModelVersion_ = nativeModelVersions_.value(0);
-        qputenv("AI_AUTH_PY_IMAGE_MODEL", pyModelPath_.toUtf8());
-        qputenv("AI_AUTH_NATIVE_MODEL_VERSION", nativeModelVersion_.toUtf8());
+        applySelectedModelEnv(pyModelPath_, nativeModelVersion_);
     } else if (!pyModelPath_.isEmpty() && !pyModelPaths_.contains(pyModelPath_)) {
         if (!pyModelPaths_.isEmpty()) {
             pyModelPath_ = pyModelPaths_.first();
             nativeModelVersion_ = nativeModelVersions_.value(0);
-            qputenv("AI_AUTH_PY_IMAGE_MODEL", pyModelPath_.toUtf8());
-            qputenv("AI_AUTH_NATIVE_MODEL_VERSION", nativeModelVersion_.toUtf8());
+            applySelectedModelEnv(pyModelPath_, nativeModelVersion_);
         } else {
             pyModelPath_.clear();
             nativeModelVersion_.clear();
-            qunsetenv("AI_AUTH_PY_IMAGE_MODEL");
-            qunsetenv("AI_AUTH_NATIVE_MODEL_VERSION");
+            applySelectedModelEnv(pyModelPath_, nativeModelVersion_);
         }
     } else if (!pyModelPath_.isEmpty()) {
         const int index = pyModelPaths_.indexOf(pyModelPath_);
         nativeModelVersion_ = index >= 0 ? nativeModelVersions_.value(index) : QString();
-        if (!nativeModelVersion_.isEmpty()) {
-            qputenv("AI_AUTH_NATIVE_MODEL_VERSION", nativeModelVersion_.toUtf8());
-        }
+        applySelectedModelEnv(pyModelPath_, nativeModelVersion_);
     }
 
     emit pyModelOptionsChanged();
@@ -763,4 +876,96 @@ void AppController::rebuildPyModelOptions() {
         emit nativeModelVersionChanged();
     }
     emit pyModelIndexChanged();
+}
+
+void AppController::reloadDistributionMetadata() {
+    const QString distributionDir = distributionDirectoryPath();
+    const QString buildInfoPath = QDir(distributionDir).filePath(QStringLiteral("build_info.json"));
+    const QString licensePath = QDir(distributionDir).filePath(QStringLiteral("license.json"));
+    const QString signaturePath = QDir(distributionDir).filePath(QStringLiteral("license.sig"));
+
+    QString nextBuildSummary = QStringLiteral("Build metadata unavailable");
+    QString nextLicenseSummary = QStringLiteral("Distribution license missing");
+    bool nextLicenseValid = false;
+
+    QFile buildInfoFile(buildInfoPath);
+    if (buildInfoFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(buildInfoFile.readAll(), &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+            const QJsonObject build = doc.object();
+            const QString appVersion = build.value(QStringLiteral("app_version")).toString(QStringLiteral("dev"));
+            const QString releaseTag = build.value(QStringLiteral("release_tag")).toString(QStringLiteral("unreleased"));
+            const QString gitCommit = build.value(QStringLiteral("git_commit")).toString(QStringLiteral("unknown"));
+            const QString modelVersion = build.value(QStringLiteral("model_version")).toString(QStringLiteral("unknown"));
+            const QString builtAt = build.value(QStringLiteral("built_at")).toString(QStringLiteral("unknown date"));
+            const QString channel = build.value(QStringLiteral("distribution_channel")).toString(QStringLiteral("local"));
+            nextBuildSummary = QStringLiteral("%1 | %2 | %3 | model %4 | built %5")
+                                   .arg(appVersion, releaseTag, gitCommit.left(7), modelVersion, channel);
+            if (!builtAt.isEmpty()) {
+                nextBuildSummary.append(QStringLiteral(" | %1").arg(builtAt));
+            }
+        }
+    }
+
+    QFile licenseFile(licensePath);
+    QFile signatureFile(signaturePath);
+    if (!licenseFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        nextLicenseSummary = QStringLiteral("Distribution license missing");
+    } else if (!signatureFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        nextLicenseSummary = QStringLiteral("Distribution signature missing");
+    } else {
+        QJsonParseError parseError;
+        const QByteArray rawLicense = licenseFile.readAll();
+        const QJsonDocument doc = QJsonDocument::fromJson(rawLicense, &parseError);
+        const QByteArray signature = signatureFile.readAll().trimmed().toLower();
+
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            nextLicenseSummary = QStringLiteral("Distribution license is not valid JSON");
+        } else {
+            const QJsonObject license = doc.object();
+            const QByteArray expected = hmacSha256(licenseSigningKey(), rawLicense.trimmed());
+            const QString issuedTo = license.value(QStringLiteral("issued_to")).toString(QStringLiteral("Unknown recipient"));
+            const QString licenseId = license.value(QStringLiteral("license_id")).toString(QStringLiteral("unknown"));
+            const QString allowedUse = license.value(QStringLiteral("allowed_use")).toString(QStringLiteral("unspecified"));
+            const QString expiresAt = license.value(QStringLiteral("expires_at")).toString();
+            const QString modelVersion = license.value(QStringLiteral("model_version")).toString();
+
+            nextLicenseSummary = QStringLiteral("%1 | %2 | %3")
+                                     .arg(issuedTo, licenseId, allowedUse);
+            if (!modelVersion.isEmpty()) {
+                nextLicenseSummary.append(QStringLiteral(" | %1").arg(modelVersion));
+            }
+            if (!expiresAt.isEmpty()) {
+                nextLicenseSummary.append(QStringLiteral(" | expires %1").arg(expiresAt));
+            }
+
+            if (signature != expected) {
+                nextLicenseSummary.prepend(QStringLiteral("Invalid signature | "));
+            } else {
+                bool expired = false;
+                if (!expiresAt.isEmpty()) {
+                    const QDateTime expiry = QDateTime::fromString(expiresAt, Qt::ISODate);
+                    expired = expiry.isValid() && expiry < QDateTime::currentDateTimeUtc();
+                }
+                if (expired) {
+                    nextLicenseSummary.prepend(QStringLiteral("Expired | "));
+                } else {
+                    nextLicenseValid = true;
+                }
+            }
+        }
+    }
+
+    const bool changed = licenseValid_ != nextLicenseValid
+        || licenseSummary_ != nextLicenseSummary
+        || buildSummary_ != nextBuildSummary;
+
+    licenseValid_ = nextLicenseValid;
+    licenseSummary_ = nextLicenseSummary;
+    buildSummary_ = nextBuildSummary;
+
+    if (changed) {
+        emit licenseMetadataChanged();
+    }
 }

@@ -28,3 +28,6 @@ Makefile
 
 # macOS
 .DS_Store
+
+# Local packaging output
+dist/

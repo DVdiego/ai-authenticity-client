@@ -2,7 +2,9 @@
 
 #include <runtime_api.h>
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QMimeDatabase>
@@ -16,6 +18,12 @@
 namespace {
 constexpr int kSpectralFeatures = 24;
 constexpr int kVisualFeatures = 32;
+
+QString appResourcesDirectoryPath() {
+    const QString candidate = QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources"));
+    const QFileInfo info(candidate);
+    return (info.exists() && info.isDir()) ? candidate : QString();
+}
 
 double envDouble(const char* name, double fallback) {
     bool ok = false;
@@ -40,6 +48,13 @@ QString nativeModelVersion() {
 }
 
 QString defaultModelPackageDir() {
+    const QString resourcesDir = appResourcesDirectoryPath();
+    if (!resourcesDir.isEmpty()) {
+        const QString bundled = QDir(resourcesDir).filePath(QStringLiteral("model-package"));
+        if (QFileInfo::exists(bundled)) {
+            return bundled;
+        }
+    }
     return QStringLiteral("/Users/macmini/tfg_ia_video/desarrollo/ai-authenticity-mobile/model-package");
 }
 
